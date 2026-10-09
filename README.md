@@ -1,86 +1,75 @@
 # sureauth-go
 
-Official Go client for the **sureAuth** hosted auth service. One-line
-integration: the library reads your credentials from the environment and
-handles API-key auth, project scoping, OTP challenges and token refresh —
-you never hardcode credentials.
+> **Official Go client SDK for the SureAuth authentication engine (`/api/v1/*` + `/oauth/*`).**
+> Stdlib-only. Zero external dependencies. Blazingly fast.
 
-## Install
+---
+
+## 1. Overview & Vision
+
+`sureauth-go` allows Go backends and microservices to integrate with SureAuth in one line.
+- Eliminates hand-rolling password hashing, PIN verification, OTP sending, JWT verification, and challenge handling.
+- **Golden Copy Architecture**: The app keeps its own local profile table (`user_profiles`) keyed by `sureauth_user_id` (`app_user_id`), while SureAuth maintains credentials, MFA, and global identity deduplication.
+
+---
+
+## 2. Installation & Quickstart
 
 ```bash
-go get github.com/medatechnology/sureauth-go@latest
+go get github.com/medatechnology/sureauth-go
 ```
 
-## Quick start (server-side)
-
+### One-Line Integration
 ```go
 package main
 
 import (
-	"context"
-	"fmt"
-	"log"
-
-	"github.com/medatechnology/sureauth-go"
+    "context"
+    "fmt"
+    "github.com/medatechnology/sureauth-go"
 )
 
 func main() {
-	// Zero-config: reads SUREAUTH_SERVER_URL + SUREAUTH_API_KEY from env.
-	client, err := sureauth-go.New()
-	if err != nil {
-		log.Fatal(err)
-	}
-	ctx := context.Background()
+    ctx := context.Background()
+    // Reads SUREAUTH_SERVER_URL + SUREAUTH_API_KEY from env
+    client, err := sureauth.New()
+    if err != nil {
+        panic(err)
+    }
 
-	// One-line sign-in with your project's configured login method
-	// (email/phone/username × password/pin/otp).
-	auth, err := client.Auth(ctx, "user@example.com", "SecurePassword123!")
-	if err != nil {
-		log.Fatal(err)
-	}
+    // Register with project-specific settings and optional metadata
+    res, err := client.Register(ctx, sureauth.AuthRequest{
+        Email:    "user@example.com",
+        Password: "SuperSecretPassword123!",
+        Metadata: `{"tier":"pro","country":"ID"}`,
+    })
+    if err != nil {
+        panic(err)
+    }
 
-	// The server may ask for more steps (OTP, phone, MFA):
-	for _, ch := range auth.Challenges {
-		switch ch.Type {
-		case sureauth-go.ChallengeOTPRequired:
-			_, _ = client.SendOTP(ctx, sureauth-go.SendOTPRequest{Identifier: ch.Field, Purpose: "login"})
-			auth, err = client.VerifyOTP(ctx, ch.Field, "123456")
-		case sureauth-go.ChallengePhoneRequired:
-			auth, err = client.CompletePhone(ctx, sureauth-go.CompletePhoneRequest{Email: ch.Field, Phone: "+62812..."})
-		}
-	}
+    if len(res.Challenges) > 0 {
+        fmt.Printf("Next challenge: %s\n", res.Challenges[0].Type)
+        return
+    }
 
-	fmt.Println("Access token:", auth.AccessToken)
-	me, _ := client.Me(ctx, auth.AccessToken)
-	fmt.Println("User:", me.AppUserID)
+    fmt.Printf("Authenticated! App User ID: %s, Access Token: %s\n", res.User.ID, res.AccessToken)
 }
 ```
 
-## Hosted login (popup/redirect)
+---
 
-```go
-url, _ := client.LoginURL(ctx, "https://app.com/auth/callback")
-// redirect the browser to url; after sign-in the engine redirects back with ?code=...
-auth, err := client.CompleteLogin(ctx, code, "https://app.com/auth/callback")
-```
+## 3. Core Features
 
-## Token refresh
-
-```go
-tm := sureauth-go.NewTokenManager(client, auth.AccessToken, auth.RefreshToken, auth.ExpiresIn)
-tm.OnRefresh(func(newToken string) { /* persist */ })
-token, _ := tm.GetAccessToken(ctx)
-```
-
-## Config
-
-| Env | Meaning |
-|-----|---------|
-| `SUREAUTH_SERVER_URL` | Engine URL (default `https://auth.sureauth.app`) |
-| `SUREAUTH_API_KEY` | Your project API key (created in the dashboard) |
-
-Or `sureauth-go.NewWithConfig(sureauth-go.Config{...})`.
-
-## License
-
-MIT
+- **Non-throwing Challenges**: Multi-step verification (OTP, phone required, fields required, overlap prompt) returns structured challenges rather than errors.
+- **Option C Overlap Merge**:
+  ```go
+  res, err := client.ConfirmMerge(ctx, sureauth.ConfirmMergeRequest{
+      Identifier: "user@example.com",
+      OTPCode:    "123456",
+  })
+  ```
+- **Custom Metadata**: Update profile metadata directly:
+  ```go
+  err := client.UpdateMetadata(ctx, accessToken, `{"plan":"enterprise"}`)
+  ```
+- **OIDC Validation**: Validate RS256 JWT tokens locally via cached JWKS or engine endpoint.

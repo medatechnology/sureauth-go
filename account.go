@@ -71,6 +71,13 @@ type ConfirmLinkRequest struct {
 	OTPCode string `json:"otp_code"`
 }
 
+// ConfirmMergeRequest consents to merging membership with an existing golden copy identity.
+type ConfirmMergeRequest struct {
+	Identifier string `json:"identifier"`
+	OTPCode    string `json:"otp_code"`
+	AppUserID  string `json:"app_user_id,omitempty"`
+}
+
 // doAuthed sends a request with the end-user access token (Bearer) + API key.
 func (c *Client) doAuthed(ctx context.Context, method, path, accessToken string, body interface{}, out interface{}) error {
 	var buf bytes.Buffer
@@ -178,4 +185,18 @@ func (c *Client) ConfirmLink(ctx context.Context, req ConfirmLinkRequest) (*Auth
 		return nil, err
 	}
 	return &out, nil
+}
+
+// ConfirmMerge finishes an identity_overlap_prompt challenge.
+func (c *Client) ConfirmMerge(ctx context.Context, req ConfirmMergeRequest) (*AuthResult, error) {
+	var out AuthResult
+	if err := c.do(ctx, http.MethodPost, "/api/v1/auth/confirm-merge", req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateMetadata updates custom metadata on the authenticated user.
+func (c *Client) UpdateMetadata(ctx context.Context, accessToken string, metadata string) error {
+	return c.doAuthed(ctx, http.MethodPatch, "/api/v1/auth/metadata", accessToken, map[string]string{"metadata": metadata}, nil)
 }

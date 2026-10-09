@@ -87,14 +87,16 @@ type User struct {
 	Phone      string `json:"phone"`
 	IsActive   bool   `json:"is_active"`
 	IsVerified bool   `json:"is_verified"`
+	Metadata   string `json:"metadata,omitempty"`
 }
 
 // Challenge is a next-step prompt from the server.
 type Challenge struct {
-	Type   string   `json:"type"`
-	Field  string   `json:"field,omitempty"`
-	Hint   string   `json:"hint,omitempty"`
-	Fields []string `json:"fields,omitempty"`
+	Type         string   `json:"type"`
+	Field        string   `json:"field,omitempty"`
+	Hint         string   `json:"hint,omitempty"`
+	Fields       []string `json:"fields,omitempty"`
+	ExistingApps []string `json:"existing_apps,omitempty"`
 }
 
 // AuthResult is the normalized auth outcome (tokens or challenges).
@@ -119,8 +121,8 @@ type AuthRequest struct {
 	Password string `json:"password,omitempty"`
 	PIN      string `json:"pin,omitempty"`
 	OTPCode  string `json:"otp_code,omitempty"`
+	Metadata string `json:"metadata,omitempty"`
 }
-
 // SendOTPRequest asks the engine to deliver a metered OTP.
 type SendOTPRequest struct {
 	Identifier string `json:"identifier,omitempty"`
